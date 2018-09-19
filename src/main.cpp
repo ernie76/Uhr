@@ -39,7 +39,7 @@
 #include "handleinput.h"
 
 time_t time;
-unsigned int next_update = 0;
+unsigned int next_update = millis();
 int time_is_present = 0;
 
 struct datum hochzeitstag;
@@ -50,7 +50,7 @@ char wifissid[100] = "keine ssid";
 int seconds = 0;
 
 
-SoftwareSerial ESPserial(D6, SW_SERIAL_UNUSED_PIN); // RX | TX
+SoftwareSerial ESPserial(GPS_PIN_RX, GPS_PIN_TX); // RX | TX
 TinyGPSPlus gps;
 
 const char *clckst[] {
@@ -125,7 +125,7 @@ const char *clckst[] {
 
   void configModeCallbackWifiManager (WiFiManager *myWiFiManager) {
     char apname[40];
-    myWiFiManager->getConfigPortalSSID().toCharArray(apname,myWiFiManager->getConfigPortalSSID().length()+1); 
+    myWiFiManager->getConfigPortalSSID().toCharArray(apname,myWiFiManager->getConfigPortalSSID().length()+1);
     char ip[20];
     WiFi.softAPIP().toString().toCharArray(ip,WiFi.softAPIP().toString().length()+1);
     screenCaptivePortal(apname,ip);
@@ -134,6 +134,19 @@ const char *clckst[] {
   boolean syncEventTriggered = false; // True if a time even has been triggered
   NTPSyncEvent_t ntpEvent; // Last triggered event
 #endif // wifi ende
+
+// Send a byte array of UBX protocol to the GPS
+void sendUBX(uint8_t *MSG, uint8_t len) {
+  for(int i=0; i<len; i++) {
+    ESPserial.write(MSG[i]);
+  }
+}
+
+void setupGPSpower() {
+  //Set GPS ot Power Save Mode
+  uint8_t setPSM[] = { 0xB5, 0x62, 0x06, 0x11, 0x02, 0x00, 0x08, 0x01, 0x22, 0x92 }; // Setup for Power Save Mode (Default Cyclic 1s)
+  sendUBX(setPSM, sizeof(setPSM)/sizeof(uint8_t));
+}
 
 void setup(void) {
   Serial.begin(9600);
@@ -222,7 +235,7 @@ void loop(void) {
     gps.encode(ESPserial.read());
   }
 
-  if (seconds != gps.time.second()) {
+  if (seconds != gps.time.second() && gps.time.isValid() && gps.date.isValid()) {
     // TODO: get fix
     seconds = gps.time.second();
     // Serial.print("LAT=");  Serial.println(gps.location.lat(), 6);
@@ -237,6 +250,7 @@ void loop(void) {
     if (!time_is_present && seconds > 0) {
       time_is_present = 1;
       setTime(gps.time.hour() + 2, gps.time.minute(),gps.time.second(),gps.date.day(),gps.date.month(),gps.date.year());
+      setupGPSpower(); // Lower power consumption
     }
   }
 #endif // else ende von wifi
@@ -270,16 +284,30 @@ void loop(void) {
       Serial.printf("Berechne Vergangenes\n");
       struct periode elapsed = calculatePeriode(hochzeitstag, today);
 
+      if (!elapsed.valid) {
+        Serial.printf("ERROR: elapsed not valid.\n");
+        next_update += REFRESH_OBTAINING_INFO;
+        time_is_present = 0;
+        return;
+      }
+
       Serial.printf("Berechne kommenden Hochzeitstag.\n");
       struct periode to_come = calculatePeriode(today, next);
+      if (!to_come.valid) {
+        Serial.printf("ERROR: to_come not valid.\n");
+        next_update += REFRESH_OBTAINING_INFO;
+        return;
+      }
 
       char description[40];
       char text[40];
 
       if (day() == hochzeitstag.tag && month() == hochzeitstag.monat)  // Ist gerade Hochzeitstag?
       {
-        Serial.printf("Hochzeitstag %i wird gezeigt.\n", count);
-        screenHochzeitstaginfo(count);
+        if (count > 0) {
+          Serial.printf("Hochzeitstag %i wird gezeigt.\n", count);
+          screenHochzeitstaginfo(count);
+        }
       }
       else if(isSpecial(elapsed.stunden_gesamt, 3, 1, description))  // Ist eine Stunden "Schnapszahl" für vergangene Zeit?
       {
@@ -317,8 +345,7 @@ void loop(void) {
       {
         screenVerheiratetSeit(elapsed);
       }
-
-      next_update = millis() + 60 * 10 * 1000 ;
+      next_update += REFRESH_REGULAR;
     } else {
       u8g2.firstPage();
       u8g2.setPowerSave(0); // before drawing, enable charge pump (req. 300ms)
@@ -327,7 +354,7 @@ void loop(void) {
       } while ( u8g2.nextPage() );
       u8g2.setPowerSave(1); // disable charge pump
 
-      next_update = millis() + 3 * 1000;
+      next_update += REFRESH_OBTAINING_INFO;
     }
 
   }

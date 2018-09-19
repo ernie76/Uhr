@@ -15,11 +15,12 @@
 #include "Images/GPS.xbm"
 #include "Images/WLAN.xbm"
 
-extern unsigned int next_update;
-
-U8G2_IL3820_V2_296X128_F_4W_SW_SPI u8g2(U8G2_R0, /* clock=*/ D5, /* data=*/ D7, /* cs=*/ D2, /* dc=*/ D1, /* reset=*/ D3);
+// U8G2_IL3820_V2_296X128_F_4W_SW_SPI u8g2(U8G2_R0, /* clock=*/ D5, /* data=*/ D7, /* cs=*/ D8, /* dc=*/ D2, /* reset=*/ D3);
+U8G2_IL3820_V2_296X128_F_4W_SW_SPI u8g2(U8G2_R0, DISPLAY_PIN_CLOCK, DISPLAY_PIN_DATA, DISPLAY_PIN_CS, DISPLAY_PIN_DC, DISPLAY_PIN_RESET);
 
 extern struct datum hochzeitstag;
+extern unsigned int next_update;
+
 
 void mehrzahl(char* result, int zahl, const char *einzahl, const char *mehrzahl) {
   switch (zahl) {
@@ -227,22 +228,22 @@ void drawAdditionalInfo(struct periode result) {
 }
 
 void drawHochzeitstagInfo(int tag_index) {
-  int zaehler;
-  int tmp;
-  tmp = tag_index;
-  for (zaehler = 0; zaehler < hochzeitstage_count; zaehler++) {
-    if (tmp == hochzeitstage[zaehler].period) {
-      tag_index = zaehler;
+  int day_to_display = 0; // "escape"-day to display if we don't have any information.
+  for (int zaehler = 1; zaehler < hochzeitstage_count; zaehler++) {
+    if (tag_index == hochzeitstage[zaehler].period) {
+      day_to_display = zaehler;
       break;
-    } else {
-      tag_index = 0;
     }
   }
 
   const uint8_t *large_font = u8g2_font_9x18B_tf;
   u8g2.setFont(large_font);
   char ueberschrift[50];
-  sprintf(ueberschrift,"%i. %s",hochzeitstage[tag_index].period, hochzeitstage[tag_index].name);
+  if (day_to_display) {
+    sprintf(ueberschrift,"%i. %s",hochzeitstage[day_to_display].period, hochzeitstage[day_to_display].name);
+  } else {
+    sprintf(ueberschrift,"%i. %s",tag_index, hochzeitstage[day_to_display].name);
+  }
   u8g2.drawStr(55, 10, ueberschrift);
 
 
@@ -253,27 +254,25 @@ void drawHochzeitstagInfo(int tag_index) {
   char *ptr;
 
   char text[800];
-  strcpy(text, hochzeitstage[tag_index].text);
+  strcpy(text, hochzeitstage[day_to_display].text);
 
   // initialisieren und ersten Abschnitt erstellen, den werfen wir gleich weg
   ptr = strtok(text, delimiter);
 
-  // Serial.println(ptr);
-
-  int x = 55; int y = 25;
+  int x = 55; int y = 25; // The width of the ccw-image and beneath the headline
   int width = 0;
 
   while(ptr != NULL) {
     // Serial.print(ptr); Serial.print(" ");
-    width = u8g2.getStrWidth(ptr);
-    if (width > u8g2.getDisplayWidth() - x) {
-      x = 55;
-      y += 10;
+    width = u8g2.getStrWidth(ptr); // Get width of word
+    if (width > u8g2.getDisplayWidth() - x) { // is it too long for the line?
+      x = 55; // cursor to the left, next to the counter-clock-wise image
+      y += 10; // next line
     }
     u8g2.drawStr(x, y, ptr);
-    x += width + 4;
+    x += width + 4; // advance the cursor by one "whitespace"
 
-    ptr = strtok(NULL, delimiter);
+    ptr = strtok(NULL, delimiter); // get the next token.
 
   }
 
@@ -300,12 +299,12 @@ void screenIPAddress(char *ip, char *wifissid) {
   do {
     drawIPAddress(ip, wifissid);
   } while ( u8g2.nextPage() );
-  u8g2.setPowerSave(1); // disable charge pump  
+  u8g2.setPowerSave(1); // disable charge pump
 
   delay(1300);
 
   next_update = 0;
-} 
+}
 
 void screenAbout() {
   u8g2.firstPage();
@@ -313,12 +312,12 @@ void screenAbout() {
   do {
     drawAbout();
   } while ( u8g2.nextPage() );
-  u8g2.setPowerSave(1); // disable charge pump  
+  u8g2.setPowerSave(1); // disable charge pump
 
   delay(1300);
 
   next_update = 0;
-} 
+}
 
 void screenCaptivePortal(char *apname, char *ip) {
   Serial.print("apname = ");
@@ -330,8 +329,8 @@ void screenCaptivePortal(char *apname, char *ip) {
   do {
     drawCaptivePortal(apname,ip);
   } while ( u8g2.nextPage() );
-  u8g2.setPowerSave(1); // disable charge pump  
-} 
+  u8g2.setPowerSave(1); // disable charge pump
+}
 
 void screenVerheiratetSeit(struct periode elapsed) {
   u8g2.firstPage();
