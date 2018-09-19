@@ -93,14 +93,17 @@ void drawObtainingTime() {
   u8g2.drawStr(140, 84, text);
 }
 
-void drawIPAddress(char *ip) {
+void drawIPAddress(char *ip, char *wifissid) {
   char text[] = "IP Address: ";
-  const uint8_t *font = u8g2_font_helvR12_tf;
+  const uint8_t *font = u8g2_font_helvR10_tf;
   // graphic commands to redraw the complete screen should be placed here
   u8g2.drawXBMP(14, 14, WLAN_width, WLAN_height, WLAN_bits);
   u8g2.setFont(font);
-  u8g2.drawStr(140, 54, text);
-  u8g2.drawStr(140, 84, ip);
+  u8g2.drawStr(140, 25, text);
+  u8g2.drawStr(140, 50, ip);
+  sprintf(text,"WLAN-SSID:");
+  u8g2.drawStr(140, 85, text);
+  u8g2.drawStr(140, 110, wifissid);
 }
 
 void drawAbout() {
@@ -291,11 +294,11 @@ void drawNextWeddingDay(struct datum date, int count) {
   }
 }
 
-void screenIPAddress(char *ip) {
+void screenIPAddress(char *ip, char *wifissid) {
   u8g2.firstPage();
   u8g2.setPowerSave(0); // before drawing, enable charge pump (req. 300ms)
   do {
-    drawIPAddress(ip);
+    drawIPAddress(ip, wifissid);
   } while ( u8g2.nextPage() );
   u8g2.setPowerSave(1); // disable charge pump  
 

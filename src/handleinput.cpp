@@ -87,7 +87,7 @@ void handleInput_auswertung(char input[]) {
   if ( !strncmp(input, "ip", 3) ) {
     Serial.print("ip = ");
     Serial.println(wifiip);
-    screenIPAddress(wifiip);
+    screenIPAddress(wifiip,wifissid);
   }
 
   if ( !strncmp(input, "resetwlan", 9) ) {
